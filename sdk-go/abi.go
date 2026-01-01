@@ -23,11 +23,11 @@ func __pipe() (res uint32) {
 }
 
 func setData(data any) (err error) {
-	_, err = binary.Encode(buf[:0], binary.LittleEndian, data)
+	n, err := binary.Encode(buf[:bufCap], binary.LittleEndian, data)
 	if err != nil {
 		return
 	}
-	bufLen = uint32(len(buf))
+	bufLen = uint32(n)
 	return
 }
 
@@ -37,11 +37,11 @@ func getData(data any) (err error) {
 }
 
 //go:wasm-module pantopic/wazero-pipe
-//export Recv
+//export __host_pipe_recv
 func recv()
 
 //go:wasm-module pantopic/wazero-pipe
-//export Send
+//export __host_pipe_send
 func send()
 
 // Fix for lint rule `unusedfunc`

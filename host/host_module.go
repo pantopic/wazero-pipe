@@ -13,8 +13,8 @@ import (
 const Name = "pantopic/wazero-pipe"
 
 var (
-	DefaultCtxKeyMeta = `wazero_pipe_meta`
-	DefaultCtxKey     = `wazero_pipe`
+	DefaultCtxKeyMeta  = `wazero_pipe_meta`
+	DefaultCtxKeyPipes = `wazero_pipe_map`
 )
 
 type meta struct {
@@ -27,17 +27,17 @@ type meta struct {
 type hostModule struct {
 	sync.RWMutex
 
-	module     api.Module
-	ctxKeyMeta string
-	ctxKey     string
+	module      api.Module
+	ctxKeyMeta  string
+	ctxKeyPipes string
 }
 
 type Option func(*hostModule)
 
 func New(opts ...Option) *hostModule {
 	p := &hostModule{
-		ctxKeyMeta: DefaultCtxKeyMeta,
-		ctxKey:     DefaultCtxKey,
+		ctxKeyMeta:  DefaultCtxKeyMeta,
+		ctxKeyPipes: DefaultCtxKeyPipes,
 	}
 	for _, opt := range opts {
 		opt(p)
@@ -57,10 +57,10 @@ func (p *hostModule) Register(ctx context.Context, r wazero.Runtime) (err error)
 		builder = builder.NewFunctionBuilder().WithGoModuleFunction(api.GoModuleFunc(fn), nil, nil).Export(name)
 	}
 	for name, fn := range map[string]any{
-		"Send": func(ctx context.Context, pipe chan []byte, data []byte) {
-			pipe <- data
+		"__host_pipe_send": func(ctx context.Context, pipe chan []byte, data []byte) {
+			pipe <- append([]byte{}, data...)
 		},
-		"Recv": func(ctx context.Context, pipe chan []byte) []byte {
+		"__host_pipe_recv": func(ctx context.Context, pipe chan []byte) []byte {
 			return <-pipe
 		},
 	} {
@@ -94,10 +94,10 @@ func (p *hostModule) Register(ctx context.Context, r wazero.Runtime) (err error)
 }
 
 // InitContext retrieves the meta page from the wasm module
-func (p *hostModule) InitContext(ctx context.Context, m api.Module) (context.Context, *meta, error) {
+func (p *hostModule) InitContext(ctx context.Context, m api.Module) (context.Context, error) {
 	stack, err := m.ExportedFunction(`__pipe`).Call(ctx)
 	if err != nil {
-		return ctx, nil, err
+		return ctx, err
 	}
 	meta := &meta{}
 	ptr := uint32(stack[0])
@@ -109,11 +109,18 @@ func (p *hostModule) InitContext(ctx context.Context, m api.Module) (context.Con
 	} {
 		*v = readUint32(m, ptr+uint32(4*i))
 	}
-	return context.WithValue(ctx, p.ctxKeyMeta, meta), meta, nil
+	return context.WithValue(ctx, p.ctxKeyMeta, meta), nil
+}
+
+// ContextCopy populates dst context with the meta page from src context.
+func (h *hostModule) ContextCopy(src, dst context.Context) context.Context {
+	dst = context.WithValue(dst, h.ctxKeyMeta, get[*meta](src, h.ctxKeyMeta))
+	dst = context.WithValue(dst, h.ctxKeyPipes, make(map[uint32]chan []byte))
+	return dst
 }
 
 func (p *hostModule) pipes(ctx context.Context) map[uint32]chan []byte {
-	return get[map[uint32]chan []byte](ctx, p.ctxKey)
+	return get[map[uint32]chan []byte](ctx, p.ctxKeyPipes)
 }
 
 func get[T any](ctx context.Context, key string) T {
