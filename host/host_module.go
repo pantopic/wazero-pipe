@@ -57,10 +57,10 @@ func (p *hostModule) Register(ctx context.Context, r wazero.Runtime) (err error)
 		builder = builder.NewFunctionBuilder().WithGoModuleFunction(api.GoModuleFunc(fn), nil, nil).Export(name)
 	}
 	for name, fn := range map[string]any{
-		"__host_pipe_send": func(ctx context.Context, pipe chan []byte, data []byte) {
+		"__pipe_send": func(ctx context.Context, pipe chan []byte, data []byte) {
 			pipe <- append([]byte{}, data...)
 		},
-		"__host_pipe_recv": func(ctx context.Context, pipe chan []byte) []byte {
+		"__pipe_recv": func(ctx context.Context, pipe chan []byte) []byte {
 			return <-pipe
 		},
 	} {

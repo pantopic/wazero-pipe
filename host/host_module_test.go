@@ -48,26 +48,65 @@ func TestModule(t *testing.T) {
 		t.Fatalf("incorrect buffer cap: %#v %d", meta, v)
 	}
 
-	// create pipe map
 	ctx = hostModule.ContextCopy(ctx, ctx)
-	go func() {
+
+	t.Run(`uint64`, func(t *testing.T) {
+		go func() {
+			for n := range 10 {
+				_, err := mod1.ExportedFunction(`testSendUint64`).Call(ctx, uint64(n))
+				if err != nil {
+					panic(err.Error())
+				}
+			}
+		}()
 		for n := range 10 {
-			_, err := mod1.ExportedFunction(`testSendUint64`).Call(ctx, uint64(n))
+			stack, err := mod2.ExportedFunction(`testRecvUint64`).Call(ctx)
 			if err != nil {
-				panic(err.Error())
+				t.Fatalf("%v", err)
+			}
+			if stack[0] != uint64(n) {
+				t.Fatalf("expected %d, got %d", n, stack[0])
 			}
 		}
-	}()
-
-	for n := range 10 {
-		stack, err := mod2.ExportedFunction(`testRecvUint64`).Call(ctx)
-		if err != nil {
-			t.Fatalf("%v", err)
+	})
+	t.Run(`uint32`, func(t *testing.T) {
+		go func() {
+			for n := range 10 {
+				_, err := mod1.ExportedFunction(`testSendUint32`).Call(ctx, uint64(n))
+				if err != nil {
+					panic(err.Error())
+				}
+			}
+		}()
+		for n := range 10 {
+			stack, err := mod2.ExportedFunction(`testRecvUint32`).Call(ctx)
+			if err != nil {
+				t.Fatalf("%v", err)
+			}
+			if stack[0] != uint64(n) {
+				t.Fatalf("expected %d, got %d", n, stack[0])
+			}
 		}
-		if stack[0] != uint64(n) {
-			t.Fatalf("expected %d, got %d", n, stack[0])
+	})
+	t.Run(`bytes`, func(t *testing.T) {
+		go func() {
+			for n := range 10 {
+				_, err := mod1.ExportedFunction(`testSendBytes`).Call(ctx, uint64(n))
+				if err != nil {
+					panic(err.Error())
+				}
+			}
+		}()
+		for n := range 10 {
+			stack, err := mod2.ExportedFunction(`testRecvBytes`).Call(ctx)
+			if err != nil {
+				t.Fatalf("%v", err)
+			}
+			if stack[0] != uint64(n) {
+				t.Fatalf("expected %d, got %d", n, stack[0])
+			}
 		}
-	}
+	})
 
 	hostModule.Stop()
 }
