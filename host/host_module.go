@@ -113,7 +113,7 @@ func (p *hostModule) InitContext(ctx context.Context, m api.Module) (context.Con
 }
 
 // ContextCopy populates dst context with the meta page from src context.
-func (h *hostModule) ContextCopy(src, dst context.Context) context.Context {
+func (h *hostModule) ContextCopy(dst, src context.Context) context.Context {
 	dst = context.WithValue(dst, h.ctxKeyMeta, get[*meta](src, h.ctxKeyMeta))
 	dst = context.WithValue(dst, h.ctxKeyPipes, make(map[uint32]chan []byte))
 	return dst
