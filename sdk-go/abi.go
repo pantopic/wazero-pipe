@@ -7,7 +7,7 @@ import (
 
 var (
 	id     uint32
-	bufCap uint32 = 1 << 10 // 1KB
+	bufCap uint32 = 2 << 20 // 2 MiB
 	bufLen uint32
 	buf    = make([]byte, int(bufCap))
 	meta   = make([]uint32, 4)
