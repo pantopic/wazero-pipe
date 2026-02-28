@@ -43,8 +43,8 @@ func TestModule(t *testing.T) {
 	if err != nil {
 		t.Fatalf(`%v`, err)
 	}
-	meta := get[*meta](ctx, hostModule.ctxKeyMeta)
-	if v := readUint32(mod1, meta.ptrBufCap); v != 1<<10 {
+	meta := get[*meta](ctx, ctxKeyMeta)
+	if v := readUint32(mod1, meta.ptrBufCap); v != 2<<20 {
 		t.Fatalf("incorrect buffer cap: %#v %d", meta, v)
 	}
 

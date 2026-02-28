@@ -13,8 +13,8 @@ import (
 const Name = "pantopic/wazero-pipe"
 
 var (
-	DefaultCtxKeyMeta  = `wazero_pipe_meta`
-	DefaultCtxKeyPipes = `wazero_pipe_map`
+	ctxKeyMeta  = `wazero_pipe_meta`
+	ctxKeyPipes = `wazero_pipe_map`
 )
 
 type meta struct {
@@ -27,31 +27,26 @@ type meta struct {
 type hostModule struct {
 	sync.RWMutex
 
-	module      api.Module
-	ctxKeyMeta  string
-	ctxKeyPipes string
+	module api.Module
 }
 
 type Option func(*hostModule)
 
 func New(opts ...Option) *hostModule {
-	p := &hostModule{
-		ctxKeyMeta:  DefaultCtxKeyMeta,
-		ctxKeyPipes: DefaultCtxKeyPipes,
-	}
+	p := &hostModule{}
 	for _, opt := range opts {
 		opt(p)
 	}
 	return p
 }
 
-func (p *hostModule) Name() string {
+func (h *hostModule) Name() string {
 	return Name
 }
-func (p *hostModule) Stop() {}
+func (h *hostModule) Stop() {}
 
 // Register instantiates the host module, making it available to all module instances in this runtime
-func (p *hostModule) Register(ctx context.Context, r wazero.Runtime) (err error) {
+func (h *hostModule) Register(ctx context.Context, r wazero.Runtime) (err error) {
 	builder := r.NewHostModuleBuilder(Name)
 	register := func(name string, fn func(ctx context.Context, m api.Module, stack []uint64)) {
 		builder = builder.NewFunctionBuilder().WithGoModuleFunction(api.GoModuleFunc(fn), nil, nil).Export(name)
@@ -67,21 +62,21 @@ func (p *hostModule) Register(ctx context.Context, r wazero.Runtime) (err error)
 		switch fn := fn.(type) {
 		case func(ctx context.Context, pipe chan []byte, data []byte):
 			register(name, func(ctx context.Context, m api.Module, stack []uint64) {
-				meta := get[*meta](ctx, p.ctxKeyMeta)
-				pipe, ok := p.pipes(ctx)[id(m, meta)]
+				meta := get[*meta](ctx, ctxKeyMeta)
+				pipe, ok := h.pipes(ctx)[id(m, meta)]
 				if !ok {
 					pipe = make(chan []byte)
-					p.pipes(ctx)[id(m, meta)] = pipe
+					h.pipes(ctx)[id(m, meta)] = pipe
 				}
 				fn(ctx, pipe, getData(m, meta))
 			})
 		case func(ctx context.Context, pipe chan []byte) []byte:
 			register(name, func(ctx context.Context, m api.Module, stack []uint64) {
-				meta := get[*meta](ctx, p.ctxKeyMeta)
-				pipe, ok := p.pipes(ctx)[id(m, meta)]
+				meta := get[*meta](ctx, ctxKeyMeta)
+				pipe, ok := h.pipes(ctx)[id(m, meta)]
 				if !ok {
 					pipe = make(chan []byte)
-					p.pipes(ctx)[id(m, meta)] = pipe
+					h.pipes(ctx)[id(m, meta)] = pipe
 				}
 				setData(m, meta, fn(ctx, pipe))
 			})
@@ -89,12 +84,12 @@ func (p *hostModule) Register(ctx context.Context, r wazero.Runtime) (err error)
 			log.Panicf("Method signature implementation missing: %#v", fn)
 		}
 	}
-	p.module, err = builder.Instantiate(ctx)
+	h.module, err = builder.Instantiate(ctx)
 	return
 }
 
 // InitContext retrieves the meta page from the wasm module
-func (p *hostModule) InitContext(ctx context.Context, m api.Module) (context.Context, error) {
+func (h *hostModule) InitContext(ctx context.Context, m api.Module) (context.Context, error) {
 	stack, err := m.ExportedFunction(`__pipe`).Call(ctx)
 	if err != nil {
 		return ctx, err
@@ -109,18 +104,18 @@ func (p *hostModule) InitContext(ctx context.Context, m api.Module) (context.Con
 	} {
 		*v = readUint32(m, ptr+uint32(4*i))
 	}
-	return context.WithValue(ctx, p.ctxKeyMeta, meta), nil
+	return context.WithValue(ctx, ctxKeyMeta, meta), nil
 }
 
 // ContextCopy populates dst context with the meta page from src context.
 func (h *hostModule) ContextCopy(dst, src context.Context) context.Context {
-	dst = context.WithValue(dst, h.ctxKeyMeta, get[*meta](src, h.ctxKeyMeta))
-	dst = context.WithValue(dst, h.ctxKeyPipes, make(map[uint32]chan []byte))
+	dst = context.WithValue(dst, ctxKeyMeta, get[*meta](src, ctxKeyMeta))
+	dst = context.WithValue(dst, ctxKeyPipes, make(map[uint32]chan []byte))
 	return dst
 }
 
-func (p *hostModule) pipes(ctx context.Context) map[uint32]chan []byte {
-	return get[map[uint32]chan []byte](ctx, p.ctxKeyPipes)
+func (h *hostModule) pipes(ctx context.Context) map[uint32]chan []byte {
+	return get[map[uint32]chan []byte](ctx, ctxKeyPipes)
 }
 
 func get[T any](ctx context.Context, key string) T {
