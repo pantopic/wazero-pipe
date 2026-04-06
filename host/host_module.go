@@ -33,11 +33,11 @@ type hostModule struct {
 type Option func(*hostModule)
 
 func New(opts ...Option) *hostModule {
-	p := &hostModule{}
+	h := &hostModule{}
 	for _, opt := range opts {
-		opt(p)
+		opt(h)
 	}
-	return p
+	return h
 }
 
 func (h *hostModule) Name() string {
